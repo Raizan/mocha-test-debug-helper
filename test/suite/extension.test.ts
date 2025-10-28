@@ -5,11 +5,11 @@ suite('Mocha Test Debug Helper Extension Test Suite', () => {
     vscode.window.showInformationMessage('Start all tests.');
 
     test('Extension should be present', () => {
-        assert.ok(vscode.extensions.getExtension('your-publisher-name.mocha-test-debug-helper'));
+        assert.ok(vscode.extensions.getExtension('narukami-dev.mocha-test-debug-helper'));
     });
 
     test('Should activate extension', async () => {
-        const ext = vscode.extensions.getExtension('your-publisher-name.mocha-test-debug-helper');
+        const ext = vscode.extensions.getExtension('narukami-dev.mocha-test-debug-helper');
         if (ext) {
             await ext.activate();
             assert.strictEqual(ext.isActive, true);
