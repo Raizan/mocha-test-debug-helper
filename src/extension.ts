@@ -319,27 +319,47 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
     const linesToComment = new Set<number>();
 
     // Find the scope containing the debug line
-    const currentScope = scopes.find(s =>
+    let currentScope = scopes.find(s =>
         s.type === 'step' && s.startLine < debugLine && s.endLine > debugLine
     );
+
+    // If debug marker is not inside a step, it might be before the first step at test level
+    // In this case, find the next step after the debug line
+    const testScope = scopes.find(s =>
+        s.type === 'test' && s.startLine < debugLine && s.endLine > debugLine
+    );
+
+    if (!currentScope && testScope) {
+        // Find the next step after the debug line
+        const nextStep = scopes.find(s =>
+            s.type === 'step' &&
+            s.startLine > debugLine &&
+            s.startLine > testScope.startLine &&
+            s.endLine < testScope.endLine
+        );
+
+        if (nextStep) {
+            // Treat the next step as the current scope for commenting purposes
+            currentScope = nextStep;
+        }
+    }
 
     if (!currentScope) {
         return linesToComment;
     }
 
     // 1. Comment out statements before debug line in current step
-    for (let i = currentScope.startLine + 1; i < debugLine; i++) {
-        const line = lines[i].trim();
-        if (line && !line.startsWith('//') && !line.match(/^(await\s+)?step\(/)) {
-            linesToComment.add(i);
+    // Only if debug line is actually inside the current step
+    if (debugLine > currentScope.startLine && debugLine < currentScope.endLine) {
+        for (let i = currentScope.startLine + 1; i < debugLine; i++) {
+            const line = lines[i].trim();
+            if (line && !line.startsWith('//') && !line.match(/^(await\s+)?step\(/)) {
+                linesToComment.add(i);
+            }
         }
     }
 
     // 2. Find all previous step scopes and test-level code at the same level
-    const testScope = scopes.find(s =>
-        s.type === 'test' && s.startLine < debugLine && s.endLine > debugLine
-    );
-
     if (testScope) {
         const stepScopes = scopes.filter(s =>
             s.type === 'step' &&
@@ -435,9 +455,30 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
     const linesToUncomment = new Set<number>();
 
     // Find the scope containing the undebug line
-    const currentScope = scopes.find(s =>
+    let currentScope = scopes.find(s =>
         s.type === 'step' && s.startLine < undebugLine && s.endLine > undebugLine
     );
+
+    // If undebug marker is not inside a step, it might be before the first step at test level
+    // In this case, find the next step after the undebug line
+    const testScope = scopes.find(s =>
+        s.type === 'test' && s.startLine < undebugLine && s.endLine > undebugLine
+    );
+
+    if (!currentScope && testScope) {
+        // Find the next step after the undebug line
+        const nextStep = scopes.find(s =>
+            s.type === 'step' &&
+            s.startLine > undebugLine &&
+            s.startLine > testScope.startLine &&
+            s.endLine < testScope.endLine
+        );
+
+        if (nextStep) {
+            // Treat the next step as the current scope for uncommenting purposes
+            currentScope = nextStep;
+        }
+    }
 
     if (!currentScope) {
         return linesToUncomment;
@@ -459,21 +500,20 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
     };
 
     // 1. Uncomment statements before undebug line in current step
-    for (let i = currentScope.startLine + 1; i < undebugLine; i++) {
-        const line = lines[i].trim();
-        if (line.startsWith('//') && !line.startsWith('// @')) {
-            const code = line.substring(2).trim();
-            if (looksLikeCode(code)) {
-                linesToUncomment.add(i);
+    // Only if undebug line is actually inside the current step
+    if (undebugLine > currentScope.startLine && undebugLine < currentScope.endLine) {
+        for (let i = currentScope.startLine + 1; i < undebugLine; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('//') && !line.startsWith('// @')) {
+                const code = line.substring(2).trim();
+                if (looksLikeCode(code)) {
+                    linesToUncomment.add(i);
+                }
             }
         }
     }
 
     // 2. Find all previous step scopes and test-level code at the same level
-    const testScope = scopes.find(s =>
-        s.type === 'test' && s.startLine < undebugLine && s.endLine > undebugLine
-    );
-
     if (testScope) {
         const stepScopes = scopes.filter(s =>
             s.type === 'step' &&
