@@ -1,0 +1,52 @@
+{
+    "name": "mocha-test-debug-helper",
+    "displayName": "Mocha Test Debug Helper",
+    "description": "Comment/uncomment code blocks for Mocha test debugging",
+    "version": "0.1.0",
+    "publisher": "your-publisher-name",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/your-username/mocha-test-debug-helper"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Testing",
+        "Other"
+    ],
+    "activationEvents": [
+        "onLanguage:typescript",
+        "onLanguage:javascript"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "mocha-test-debug-helper.processDebug",
+                "title": "Mocha Test Debug: Process Debug/Undebug Markers"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+        "@types/glob": "^8.1.0",
+        "@types/mocha": "^10.0.6",
+        "@types/node": "^20.x",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.x",
+        "@typescript-eslint/parser": "^6.x",
+        "@vscode/test-electron": "^2.3.8",
+        "eslint": "^8.x",
+        "glob": "^8.1.0",
+        "mocha": "^10.2.0",
+        "typescript": "^5.3.0"
+    }
+}

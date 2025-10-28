@@ -1,0 +1,24 @@
+# Dependencies
+node_modules
+
+# Compiled output
+out/
+dist/
+*.js
+*.js.map
+!test-logic.js
+
+# Package files
+*.vsix
+
+# Test artifacts
+.vscode-test/
+.vscode-test-web/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
