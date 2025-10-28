@@ -2,7 +2,7 @@
     "name": "mocha-test-debug-helper",
     "displayName": "Mocha Test Debug Helper",
     "description": "Comment/uncomment code blocks for Mocha test debugging",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "publisher": "narukami-dev",
     "repository": {
         "type": "git",

@@ -1,6 +1,6 @@
-# WDIO Debug Helper
+# Mocha Test Debug Helper
 
-A VS Code extension to help debug WDIO tests by automatically commenting/uncommenting code blocks based on special markers.
+A VS Code extension to help debug Mocha-style tests by automatically commenting/uncommenting code blocks based on special markers.
 
 ## Features
 
@@ -133,10 +133,6 @@ test("my test", {}, async () => {
 2. Save the file (Cmd+S / Ctrl+S)
 3. The extension automatically processes the markers and updates your code
 
-Alternatively, you can manually trigger the processing:
-- Open Command Palette (Cmd+Shift+P / Ctrl+Shift+P)
-- Run: `WDIO: Process Debug/Undebug Markers`
-
 ## Supported File Types
 
 - TypeScript (`.ts`)
@@ -181,7 +177,7 @@ vsce package
 
 - The extension preserves comments that look intentional (e.g., containing "intentional" in the text)
 - Works best with properly formatted and indented code
-- Assumes standard WDIO test structure with `describe`, `test`, `step`, `before`, and `beforeEach` blocks
+- Assumes standard Mocha test structure with `describe`, `test`, `step`, `before`, and `beforeEach` blocks
 
 ## License
 
