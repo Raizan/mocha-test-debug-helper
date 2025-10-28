@@ -48,7 +48,68 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    context.subscriptions.push(saveHandler, commandHandler);
+    // Register command for toggling debug markers with keyboard shortcut
+    const toggleMarkerHandler = vscode.commands.registerCommand('mocha-test-debug-helper.toggleDebugMarker', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            return;
+        }
+
+        const position = editor.selection.active;
+        const line = editor.document.lineAt(position.line);
+        const lineText = line.text.trim();
+
+        const edit = new vscode.WorkspaceEdit();
+
+        if (lineText === '// @debug') {
+            // Replace with @undebug
+            const indent = line.text.match(/^(\s*)/)?.[1] || '';
+            edit.replace(editor.document.uri, line.range, `${indent}// @undebug`);
+        } else if (lineText === '// @undebug') {
+            // Delete the line
+            const rangeToDelete = new vscode.Range(
+                position.line,
+                0,
+                position.line + 1,
+                0
+            );
+            edit.delete(editor.document.uri, rangeToDelete);
+        } else {
+            // Insert @debug at cursor position
+            const indent = line.text.match(/^(\s*)/)?.[1] || '';
+
+            if (lineText === '' || line.text.trim() === '') {
+                // Empty line: replace it without creating new line
+                const range = new vscode.Range(
+                    new vscode.Position(position.line, 0),
+                    new vscode.Position(position.line, line.text.length)
+                );
+                edit.replace(editor.document.uri, range, `${indent}// @debug`);
+
+                // Move cursor to end of debug line
+                vscode.workspace.applyEdit(edit).then(() => {
+                    const newPosition = new vscode.Position(position.line, indent.length + 10); // Position after "// @debug"
+                    editor.selection = new vscode.Selection(newPosition, newPosition);
+                });
+                return;
+            } else {
+                // Line has content: insert on new line above
+                const insertPosition = new vscode.Position(position.line, 0);
+                edit.insert(editor.document.uri, insertPosition, `${indent}// @debug\n`);
+
+                // Move cursor to end of debug line
+                vscode.workspace.applyEdit(edit).then(() => {
+                    const newPosition = new vscode.Position(position.line, indent.length + 10); // Position after "// @debug"
+                    editor.selection = new vscode.Selection(newPosition, newPosition);
+                });
+                return;
+            }
+        }
+
+        vscode.workspace.applyEdit(edit);
+    });
+
+    context.subscriptions.push(saveHandler, commandHandler, toggleMarkerHandler);
 }
 
 function processDebugMarkersForSave(document: vscode.TextDocument): vscode.TextEdit[] | null {

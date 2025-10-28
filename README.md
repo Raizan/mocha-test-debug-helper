@@ -4,6 +4,16 @@ A VS Code extension to help debug Mocha-style tests by automatically commenting/
 
 ## Features
 
+### Keyboard Shortcut (`Ctrl+Shift+D`)
+
+Quickly toggle debug markers with a keyboard shortcut:
+
+1. **First press**: Insert `// @debug` at the current cursor line
+2. **Second press** (on `// @debug` line): Replace with `// @undebug`
+3. **Third press** (on `// @undebug` line): Delete the line
+
+The shortcut automatically preserves indentation and only works in TypeScript/JavaScript files.
+
 ### Debug Mode (`// @debug`)
 
 When you add a `// @debug` comment in your test file, the extension will automatically comment out:
@@ -129,7 +139,18 @@ test("my test", {}, async () => {
 
 ## Usage
 
-1. Add `// @debug` or `// @undebug` comment in your test file where you want to apply the commenting/uncommenting
+### Quick Method (Keyboard Shortcut)
+
+1. Place your cursor where you want to add a debug marker
+2. Press `Ctrl+Shift+D` to insert `// @debug`
+3. Save the file (Cmd+S / Ctrl+S) - the extension automatically comments out code
+4. Press `Ctrl+Shift+D` again to toggle to `// @undebug`
+5. Save again to uncomment the code
+6. Press `Ctrl+Shift+D` once more to remove the marker
+
+### Manual Method
+
+1. Manually type `// @debug` or `// @undebug` comment in your test file where you want to apply the commenting/uncommenting
 2. Save the file (Cmd+S / Ctrl+S)
 3. The extension automatically processes the markers and updates your code
 
