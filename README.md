@@ -89,7 +89,7 @@ test("my test", {}, async () => {
 
 When you add a `// @undebug` comment, the extension will uncomment code that was previously commented by the debug mode.
 
-**Important:** The extension only uncomments code once per save to prevent uncommenting intentional comments. It preserves comments that start with special markers (like `// intentional comment`).
+**Important:** The extension uses pattern matching to identify code vs. intentional comments. It only uncomments lines that match common code patterns (keywords like `const`, `await`, function calls, assignments, etc.). Natural language comments are preserved.
 
 **Example:**
 
@@ -175,7 +175,7 @@ vsce package
 
 ## Known Limitations
 
-- The extension preserves comments that look intentional (e.g., containing "intentional" in the text)
+- The extension uses pattern matching to distinguish code from intentional comments when uncommenting. It only uncomments lines that match common code patterns (keywords, function calls, assignments, etc.)
 - Works best with properly formatted and indented code
 - Assumes standard Mocha test structure with `describe`, `test`, `step`, `before`, and `beforeEach` blocks
 
