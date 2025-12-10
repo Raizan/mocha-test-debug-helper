@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { Project, SourceFile, Node, CallExpression, ArrowFunction, SyntaxKind } from 'ts-morph';
 
 interface ScopeInfo {
     type: 'step' | 'before' | 'beforeEach' | 'test' | 'describe';
@@ -575,60 +576,185 @@ function processUndebugMode(document: vscode.TextDocument, lines: string[], unde
     return edit;
 }
 
-function parseScopes(lines: string[]): ScopeInfo[] {
-    const scopes: ScopeInfo[] = [];
-    const stack: { type: string; startLine: number; startLevel: number }[] = [];
-    let currentLevel = 0;
+/**
+ * Convert a character position to a line number (0-based) using ts-morph's source file
+ */
+function getLineNumberFromPosition(sourceFile: SourceFile, position: number): number {
+    // Use the compiler API to get line and character
+    const lineAndChar = sourceFile.getLineAndColumnAtPos(position);
+    // ts-morph returns 1-based line numbers, convert to 0-based
+    return lineAndChar.line - 1;
+}
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const originalLine = lines[i];
+/**
+ * Get the name of a call expression (e.g., "step", "describe", "test")
+ * Also checks if it's wrapped in an await expression
+ */
+function getCallExpressionName(node: CallExpression): { name: string | null; isAwait: boolean } {
+    const expression = node.getExpression();
+    let isAwait = false;
 
-        // Detect scope starts before updating level
-        if (line.startsWith('await step(') || line.includes('await step(')) {
-            stack.push({ type: 'step', startLine: i, startLevel: currentLevel });
-        } else if (line.startsWith('before(') || line.match(/^\s*before\(/)) {
-            stack.push({ type: 'before', startLine: i, startLevel: currentLevel });
-        } else if (line.startsWith('beforeEach(') || line.match(/^\s*beforeEach\(/)) {
-            stack.push({ type: 'beforeEach', startLine: i, startLevel: currentLevel });
-        } else if (line.startsWith('test(') || line.match(/^\s*test\(/)) {
-            stack.push({ type: 'test', startLine: i, startLevel: currentLevel });
-        } else if (line.startsWith('describe(') || line.match(/^\s*describe\(/)) {
-            stack.push({ type: 'describe', startLine: i, startLevel: currentLevel });
-        }
+    // Check if parent is await: await step(...)
+    const parent = node.getParent();
+    if (Node.isAwaitExpression(parent)) {
+        isAwait = true;
+    }
 
-        // Count opening and closing braces
-        const openBraces = (originalLine.match(/\{/g) || []).length;
-        const closeBraces = (originalLine.match(/\}/g) || []).length;
+    // Handle direct calls: step(...), describe(...)
+    if (Node.isIdentifier(expression)) {
+        return { name: expression.getText(), isAwait };
+    }
 
-        // Update level based on braces
-        currentLevel += openBraces - closeBraces;
+    // Handle property access: obj.step(...)
+    if (Node.isPropertyAccessExpression(expression)) {
+        return { name: expression.getName(), isAwait };
+    }
 
-        // Check if any scopes are closing at this level
-        // We close scopes when we return to their starting level after being deeper
-        while (stack.length > 0 && currentLevel <= stack[stack.length - 1].startLevel) {
-            const scope = stack.pop()!;
-            scopes.push({
-                type: scope.type as any,
-                startLine: scope.startLine,
-                endLine: i,
-                level: scope.startLevel
-            });
+    return { name: null, isAwait: false };
+}
+
+/**
+ * Find the arrow function callback in a call expression
+ * Usually the last argument, but we'll check all arguments
+ */
+function findArrowFunctionCallback(callExpr: CallExpression): ArrowFunction | null {
+    const args = callExpr.getArguments();
+
+    // Check arguments in reverse order (last argument is usually the callback)
+    for (let i = args.length - 1; i >= 0; i--) {
+        const arg = args[i];
+        if (Node.isArrowFunction(arg)) {
+            return arg;
         }
     }
 
-    // Close any remaining scopes
-    while (stack.length > 0) {
-        const scope = stack.pop()!;
-        scopes.push({
-            type: scope.type as any,
-            startLine: scope.startLine,
-            endLine: lines.length - 1,
-            level: scope.startLevel
+    return null;
+}
+
+function parseScopes(lines: string[]): ScopeInfo[] {
+    const scopes: ScopeInfo[] = [];
+    const sourceText = lines.join('\n');
+
+    // Handle empty or invalid source
+    if (!sourceText.trim()) {
+        return scopes;
+    }
+
+    try {
+        // Create a ts-morph project and parse the source
+        const project = new Project({
+            useInMemoryFileSystem: true,
+            compilerOptions: {
+                allowJs: true,
+                checkJs: false,
+            }
         });
+
+        // Determine file extension based on content (try TypeScript first, fallback to JS)
+        const sourceFile = project.createSourceFile('temp.ts', sourceText, { overwrite: true });
+
+        // Visit all call expressions in the AST
+        sourceFile.forEachDescendant((node) => {
+            if (!Node.isCallExpression(node)) {
+                return;
+            }
+
+            const { name: callName, isAwait } = getCallExpressionName(node);
+            if (!callName) {
+                return;
+            }
+
+            // For step, only accept if it's await step(...)
+            if (callName === 'step' && !isAwait) {
+                return;
+            }
+
+            // Check if this is one of our target functions
+            let scopeType: ScopeInfo['type'] | null = null;
+            if (callName === 'step') {
+                scopeType = 'step';
+            } else if (callName === 'describe') {
+                scopeType = 'describe';
+            } else if (callName === 'test') {
+                scopeType = 'test';
+            } else if (callName === 'before') {
+                scopeType = 'before';
+            } else if (callName === 'beforeEach') {
+                scopeType = 'beforeEach';
+            }
+
+            if (!scopeType) {
+                return;
+            }
+
+            // Find the arrow function callback
+            const arrowFunction = findArrowFunctionCallback(node);
+            if (!arrowFunction) {
+                return;
+            }
+
+            // Get the body of the arrow function
+            const body = arrowFunction.getBody();
+            if (!body || !Node.isBlock(body)) {
+                // Skip if body is not a block (e.g., single expression arrow function)
+                return;
+            }
+
+            // Calculate start and end positions
+            // Start: line where the call expression starts (for compatibility with existing code)
+            // End: line where the arrow function body ends (closing brace)
+            const callStartPos = node.getStart();
+            const bodyStartPos = body.getStart(); // Opening brace of body
+            const bodyEndPos = body.getEnd(); // Closing brace of body
+
+            // Convert positions to line numbers (0-based)
+            const startLine = getLineNumberFromPosition(sourceFile, callStartPos);
+            const endLine = getLineNumberFromPosition(sourceFile, bodyEndPos);
+
+            // Calculate nesting level by counting how many scopes contain this one
+            let level = 0;
+            for (const existingScope of scopes) {
+                if (existingScope.startLine < startLine && existingScope.endLine > endLine) {
+                    level++;
+                }
+            }
+
+            // Add this scope
+            scopes.push({
+                type: scopeType,
+                startLine: startLine,
+                endLine: endLine,
+                level: level
+            });
+        });
+
+        // Sort scopes by startLine to maintain order
+        scopes.sort((a, b) => a.startLine - b.startLine);
+
+    } catch (error) {
+        // If parsing fails (e.g., syntax errors), fall back to empty scopes
+        // This prevents the extension from breaking on invalid code
+        console.warn('Failed to parse scopes with ts-morph:', error);
+        return scopes;
     }
 
     return scopes;
+}
+
+/**
+ * Check if a line is a closing brace/parenthesis for step, describe, test, before, or beforeEach blocks.
+ * Uses the scope information to accurately identify closing lines, avoiding false positives from nested structures.
+ */
+function isClosingBraceLine(lineNumber: number, scopes: ScopeInfo[]): boolean {
+    // Check if this line number is the endLine of any step, describe, test, before, or beforeEach scope
+    return scopes.some(scope =>
+        (scope.type === 'step' ||
+            scope.type === 'describe' ||
+            scope.type === 'test' ||
+            scope.type === 'before' ||
+            scope.type === 'beforeEach') &&
+        scope.endLine === lineNumber
+    );
 }
 
 function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: number): Set<number> {
@@ -688,8 +814,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
             for (let i = beforeScope.startLine + 1; i < endLine; i++) {
                 const line = lines[i].trim();
                 // Include already-commented lines (they'll get another // added)
-                // Skip only markers and declarations
-                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(before|beforeEach)\(/)) {
+                // Skip only markers, declarations, and closing braces
+                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(before|beforeEach)\(/) && !isClosingBraceLine(i, scopes)) {
                     linesToComment.add(i);
                 }
             }
@@ -703,8 +829,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
             for (let i = scope.startLine + 1; i < scope.endLine; i++) {
                 const line = lines[i].trim();
                 // Include already-commented lines (they'll get another // added)
-                // Skip only markers and declarations
-                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(before|beforeEach)\(/)) {
+                // Skip only markers, declarations, and closing braces
+                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(before|beforeEach)\(/) && !isClosingBraceLine(i, scopes)) {
                     linesToComment.add(i);
                 }
             }
@@ -721,7 +847,7 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
             for (const step of allStepsInTest) {
                 for (let i = step.startLine + 1; i < step.endLine; i++) {
                     const line = lines[i].trim();
-                    if (line && !line.startsWith('//') && !line.includes('await step(')) {
+                    if (line && !line.startsWith('//') && !line.includes('await step(') && !isClosingBraceLine(i, scopes)) {
                         linesToComment.add(i);
                     }
                 }
@@ -760,8 +886,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
                 for (let i = testBodyStart; i < testScope.endLine; i++) {
                     const line = lines[i].trim();
                     // Include already-commented lines (they'll get another // added)
-                    // Skip only markers and step declarations
-                    if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/)) {
+                    // Skip only markers, step declarations, and closing braces
+                    if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/) && !isClosingBraceLine(i, scopes)) {
                         linesToComment.add(i);
                     }
                 }
@@ -784,8 +910,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
         for (let i = currentScope.startLine + 1; i < endLine; i++) {
             const line = lines[i].trim();
             // Include already-commented lines (they'll get another // added)
-            // Skip only markers and step declarations
-            if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/)) {
+            // Skip only markers, step declarations, and closing braces
+            if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/) && !isClosingBraceLine(i, scopes)) {
                 linesToComment.add(i);
             }
         }
@@ -805,8 +931,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
             for (let i = step.startLine + 1; i < step.endLine; i++) {
                 const line = lines[i].trim();
                 // Include already-commented lines (they'll get another // added)
-                // Skip only markers and step declarations
-                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.includes('await step(')) {
+                // Skip only markers, step declarations, and closing braces
+                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.includes('await step(') && !isClosingBraceLine(i, scopes)) {
                     linesToComment.add(i);
                 }
             }
@@ -848,8 +974,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
             for (let i = testBodyStart; i < firstStep.startLine; i++) {
                 const line = lines[i].trim();
                 // Include already-commented lines (they'll get another // added)
-                // Skip only markers and step declarations
-                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/)) {
+                // Skip only markers, step declarations, and closing braces
+                if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/) && !isClosingBraceLine(i, scopes)) {
                     linesToComment.add(i);
                 }
             }
@@ -864,8 +990,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
                     for (let i = thisStep.endLine + 1; i < nextStep.startLine; i++) {
                         const line = lines[i].trim();
                         // Include already-commented lines (they'll get another // added)
-                        // Skip only markers and step declarations
-                        if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/)) {
+                        // Skip only markers, step declarations, and closing braces
+                        if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(await\s+)?step\(/) && !isClosingBraceLine(i, scopes)) {
                             linesToComment.add(i);
                         }
                     }
@@ -881,8 +1007,8 @@ function findLinesToComment(lines: string[], scopes: ScopeInfo[], debugLine: num
         for (let i = scope.startLine + 1; i < scope.endLine; i++) {
             const line = lines[i].trim();
             // Include already-commented lines (they'll get another // added)
-            // Skip only markers and declarations
-            if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(before|beforeEach)\(/)) {
+            // Skip only markers, declarations, and closing braces
+            if (line && !line.match(/^\/\/\s*@(debug|undebug)$/) && !line.match(/^(before|beforeEach)\(/) && !isClosingBraceLine(i, scopes)) {
                 linesToComment.add(i);
             }
         }
@@ -947,7 +1073,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
             const endLine = Math.min(undebugLine, beforeScope.endLine);
             for (let i = beforeScope.startLine + 1; i < endLine; i++) {
                 const line = lines[i].trim();
-                if (line.startsWith('//') && !line.startsWith('// @')) {
+                if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                     linesToUncomment.add(i);
                 }
             }
@@ -960,7 +1086,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
         for (const scope of allBeforeScopes) {
             for (let i = scope.startLine + 1; i < scope.endLine; i++) {
                 const line = lines[i].trim();
-                if (line.startsWith('//') && !line.startsWith('// @')) {
+                if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                     linesToUncomment.add(i);
                 }
             }
@@ -977,7 +1103,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
             for (const step of allStepsInTest) {
                 for (let i = step.startLine + 1; i < step.endLine; i++) {
                     const line = lines[i].trim();
-                    if (line.startsWith('//') && !line.startsWith('// @')) {
+                    if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                         linesToUncomment.add(i);
                     }
                 }
@@ -1007,7 +1133,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
                 const firstStep = allStepsInTest[0];
                 for (let i = testBodyStart; i < firstStep.startLine; i++) {
                     const line = lines[i].trim();
-                    if (line.startsWith('//') && !line.startsWith('// @')) {
+                    if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                         linesToUncomment.add(i);
                     }
                 }
@@ -1015,7 +1141,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
                 // No steps, uncomment all test-level code
                 for (let i = testBodyStart; i < testScope.endLine; i++) {
                     const line = lines[i].trim();
-                    if (line.startsWith('//') && !line.startsWith('// @')) {
+                    if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                         linesToUncomment.add(i);
                     }
                 }
@@ -1038,7 +1164,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
         const endLine = Math.min(undebugLine, currentScope.endLine);
         for (let i = currentScope.startLine + 1; i < endLine; i++) {
             const line = lines[i].trim();
-            if (line.startsWith('//') && !line.startsWith('// @')) {
+            if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                 linesToUncomment.add(i);
             }
         }
@@ -1057,7 +1183,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
         for (const step of stepScopes) {
             for (let i = step.startLine + 1; i < step.endLine; i++) {
                 const line = lines[i].trim();
-                if (line.startsWith('//') && !line.startsWith('// @')) {
+                if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                     linesToUncomment.add(i);
                 }
             }
@@ -1097,7 +1223,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
             const firstStep = allStepsInTest[0];
             for (let i = testBodyStart; i < firstStep.startLine; i++) {
                 const line = lines[i].trim();
-                if (line.startsWith('//') && !line.startsWith('// @')) {
+                if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                     linesToUncomment.add(i);
                 }
             }
@@ -1111,7 +1237,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
                 if (nextStep.startLine <= currentScope.startLine) {
                     for (let i = thisStep.endLine + 1; i < nextStep.startLine; i++) {
                         const line = lines[i].trim();
-                        if (line.startsWith('//') && !line.startsWith('// @')) {
+                        if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                             linesToUncomment.add(i);
                         }
                     }
@@ -1126,7 +1252,7 @@ function findLinesToUncomment(lines: string[], scopes: ScopeInfo[], undebugLine:
     for (const scope of beforeScopes) {
         for (let i = scope.startLine + 1; i < scope.endLine; i++) {
             const line = lines[i].trim();
-            if (line.startsWith('//') && !line.startsWith('// @')) {
+            if (line.startsWith('//') && !line.startsWith('// @') && !isClosingBraceLine(i, scopes)) {
                 linesToUncomment.add(i);
             }
         }

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0] - 2025-12-10
+
+### Changed
+- **Major rewrite: AST-based scope parsing**: Replaced regex and brace-counting approach with ts-morph AST parsing for more accurate scope detection
+  - Uses TypeScript compiler API to parse code structure
+  - Handles complex nested structures correctly
+  - More reliable detection of `step`, `describe`, `test`, `before`, and `beforeEach` blocks
+- **Command names**: Updated command identifiers to include publisher prefix (`narukami-dev.mocha-test-debug-helper.*`)
+
+### Fixed
+- **Closing brace detection**: Fixed critical bug where closing braces/parentheses for `step`, `describe`, `test`, `before`, and `beforeEach` blocks were being incorrectly commented out
+  - Now uses scope endLine information to accurately identify closing braces
+  - Prevents false positives from nested structures (e.g., object literals inside function calls)
+- **Scope boundary accuracy**: Improved accuracy of scope start and end line detection using AST parsing instead of brace counting
+
+### Added
+- **ts-morph dependency**: Added ts-morph library for robust TypeScript/JavaScript AST parsing
+
 ## [0.2.1] - 2025-12-10
 
 ### Fixed

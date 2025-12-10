@@ -3,7 +3,7 @@
     "displayName": "Mocha Test Debug Helper",
     "description": "Comment/uncomment code blocks for Mocha test debugging",
     "icon": "resources/images/icon_minified.png",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "publisher": "narukami-dev",
     "repository": {
         "type": "git",
@@ -48,6 +48,9 @@
         "pretest": "npm run compile",
         "lint": "eslint src --ext ts",
         "test": "node ./out/test/runTest.js"
+    },
+    "dependencies": {
+        "ts-morph": "^24.0.0"
     },
     "devDependencies": {
         "@types/glob": "^8.1.0",

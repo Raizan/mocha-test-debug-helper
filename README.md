@@ -2,6 +2,8 @@
 
 A VS Code extension to help debug Mocha-style tests by automatically commenting/uncommenting code blocks based on special markers.
 
+**Version 0.3.0+** uses AST-based parsing (ts-morph) for more accurate scope detection and improved handling of complex code structures.
+
 ## Features
 
 ### Keyboard Shortcut (`Ctrl+Shift+D`)
@@ -27,7 +29,7 @@ This allows you to focus on debugging a specific part of your test without execu
 
 **Example:**
 
-Before (with `// @debug` at line 32):
+Before (with `// @debug`):
 ```typescript
 test("my test", {}, async () => {
     await step('first step', async () => {
@@ -103,7 +105,7 @@ When you add a `// @undebug` comment, the extension will uncomment code that was
 
 **Example:**
 
-With `// @undebug` at line 32:
+With `// @undebug`:
 ```typescript
 test("my test", {}, async () => {
     await step('first step', async () => {
@@ -194,11 +196,22 @@ vsce package
 
 - VS Code 1.85.0 or higher
 
+## Technical Details
+
+### AST-Based Parsing (v0.3.0+)
+
+The extension uses **ts-morph** (TypeScript compiler API) to parse code structure, providing:
+
+- **Accurate scope detection**: Uses AST parsing instead of regex/brace counting for reliable detection of `step`, `describe`, `test`, `before`, and `beforeEach` blocks
+- **Handles complex structures**: Correctly identifies scopes even with nested objects, function calls, and other complex code patterns
+- **Precise boundary detection**: Accurately determines scope start and end lines, preventing false positives (e.g., closing braces of nested structures won't be mistaken for scope boundaries)
+
 ## Known Limitations
 
-- The extension uses pattern matching to distinguish code from intentional comments when uncommenting. It only uncomments lines that match common code patterns (keywords, function calls, assignments, etc.)
+- The extension uses pattern matching to distinguish code from intentional comments when uncommenting. It only uncomments lines that match common code patterns (keywords, function calls, assignments, etc.). Natural language comments are preserved.
 - Works best with properly formatted and indented code
 - Assumes standard Mocha test structure with `describe`, `test`, `step`, `before`, and `beforeEach` blocks
+- For `step` functions, they must be wrapped in `await` (e.g., `await step(...)`) to be detected
 
 ## License
 
