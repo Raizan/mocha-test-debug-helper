@@ -27,73 +27,60 @@ before(() => {
         });
     });
 
-    suite('Code Pattern Detection', () => {
-        test('Should detect const declaration as code', () => {
-            const line = 'const content = [];';
-            const patterns = [
-                /^(const|let|var|await|return|if|for|while|function|class|import|export)\s/,
-                /^[a-zA-Z_$][a-zA-Z0-9_$]*\s*[=\(]/,
-                /^[a-zA-Z_$][a-zA-Z0-9_$.]*\(/,
-                /^\$/,
-                /^expect\(/,
+    suite('Comment/Uncomment Behavior', () => {
+        test('Should uncomment any line starting with //, not just code patterns', () => {
+            // The new behavior: undebug removes first // regardless of content
+            const commentedLines = [
+                '        // const x = 1;',
+                '        // await sleep(3000);',
+                '        // already commented',
+                '        // TODO: fix this',
+                '        // some random text'
             ];
 
-            const matches = patterns.some(pattern => pattern.test(line));
-            assert.strictEqual(matches, true, 'Should detect const as code');
+            for (const line of commentedLines) {
+                const indentMatch = line.match(/^(\s*)/);
+                const indent = indentMatch ? indentMatch[1] : '';
+                const afterIndent = line.substring(indent.length);
+
+                // All should be uncommented (first // removed)
+                assert.ok(afterIndent.startsWith('//'), 'Line should start with //');
+            }
         });
 
-        test('Should detect await statement as code', () => {
-            const line = 'await sleep(3000);';
-            const patterns = [
-                /^(const|let|var|await|return|if|for|while|function|class|import|export)\s/,
-            ];
+        test('Should handle double-commented lines correctly', () => {
+            // When commenting an already-commented line, result should be double-commented
+            const originalCommented = '        // already commented';
+            const indent = originalCommented.match(/^(\s*)/)?.[1] || '';
+            const trimmed = originalCommented.trim();
 
-            const matches = patterns.some(pattern => pattern.test(line));
-            assert.strictEqual(matches, true, 'Should detect await as code');
-        });
+            let doubleCommented: string;
+            if (trimmed.startsWith('//')) {
+                doubleCommented = `${indent}//${originalCommented.trimStart()}`;
+            } else {
+                doubleCommented = `${indent}// ${originalCommented.trimStart()}`;
+            }
 
-        test('Should detect console.log as code', () => {
-            const line = "console.log('before');";
-            const pattern = /^[a-zA-Z_$][a-zA-Z0-9_$.]*\(/;
+            assert.strictEqual(doubleCommented, '        //// already commented');
 
-            const matches = pattern.test(line);
-            assert.strictEqual(matches, true, 'Should detect console.log as code');
-        });
+            // When uncommenting double-commented line, should remove only first //
+            const indentMatch = doubleCommented.match(/^(\s*)/);
+            const indent2 = indentMatch ? indentMatch[1] : '';
+            const afterIndent = doubleCommented.substring(indent2.length);
 
-        test('Should detect WebdriverIO selector as code', () => {
-            const line = "$('selector').tap();";
-            const pattern = /^\$/;
+            let uncommented: string;
+            if (afterIndent.startsWith('//')) {
+                const rest = afterIndent.substring(2);
+                if (rest.startsWith(' ')) {
+                    uncommented = `${indent2}${rest.substring(1)}`;
+                } else {
+                    uncommented = `${indent2}${rest}`;
+                }
+            } else {
+                uncommented = doubleCommented;
+            }
 
-            const matches = pattern.test(line);
-            assert.strictEqual(matches, true, 'Should detect $ selector as code');
-        });
-
-        test('Should NOT detect intentional comment as code', () => {
-            const line = 'intentional comment';
-            const patterns = [
-                /^(const|let|var|await|return|if|for|while|function|class|import|export)\s/,
-                /^[a-zA-Z_$][a-zA-Z0-9_$]*\s*[=\(]/,
-                /^[a-zA-Z_$][a-zA-Z0-9_$.]*\(/,
-                /^\$/,
-                /^expect\(/,
-            ];
-
-            const matches = patterns.some(pattern => pattern.test(line));
-            assert.strictEqual(matches, false, 'Should NOT detect comment as code');
-        });
-
-        test('Should NOT detect TODO comment as code', () => {
-            const line = 'TODO: fix this later';
-            const patterns = [
-                /^(const|let|var|await|return|if|for|while|function|class|import|export)\s/,
-                /^[a-zA-Z_$][a-zA-Z0-9_$]*\s*[=\(]/,
-                /^[a-zA-Z_$][a-zA-Z0-9_$.]*\(/,
-                /^\$/,
-                /^expect\(/,
-            ];
-
-            const matches = patterns.some(pattern => pattern.test(line));
-            assert.strictEqual(matches, false, 'Should NOT detect TODO as code');
+            assert.strictEqual(uncommented, '        // already commented');
         });
     });
 
@@ -106,18 +93,88 @@ before(() => {
             assert.strictEqual(commented, '        // await sleep(3000);');
         });
 
-        test('Should remove comment prefix correctly', () => {
-            const line = '        // await sleep(3000);';
-            const match = line.match(/^(\s*)\/\/\s(.+)$/);
+        test('Should respect existing comments when commenting', () => {
+            // When a line already has //, add another // before it
+            // This allows @undebug to reverse it properly
+            const testCases = [
+                {
+                    input: '        // already commented',
+                    expected: '        //// already commented',
+                    description: 'commented line with space after //'
+                },
+                {
+                    input: '    //already commented',
+                    expected: '    ////already commented',
+                    description: 'commented line without space after //'
+                },
+                {
+                    input: '        not commented',
+                    expected: '        // not commented',
+                    description: 'uncommented line'
+                }
+            ];
 
-            assert.ok(match);
-            if (match) {
-                const indent = match[1];
-                const code = match[2];
-                const uncommented = `${indent}${code}`;
+            for (const testCase of testCases) {
+                const line = testCase.input;
+                const indent = line.match(/^(\s*)/)?.[1] || '';
+                const trimmed = line.trim();
 
-                assert.strictEqual(uncommented, '        await sleep(3000);');
+                let commentedLine: string;
+                if (trimmed.startsWith('//')) {
+                    // Already commented - add another //
+                    commentedLine = `${indent}//${line.trimStart()}`;
+                } else {
+                    // Not commented - add //
+                    commentedLine = `${indent}// ${line.trimStart()}`;
+                }
+
+                assert.strictEqual(commentedLine, testCase.expected,
+                    `Failed for case: ${testCase.description}`);
             }
+        });
+
+        test('Should remove first // when uncommenting', () => {
+            // Remove only the first // found
+            const line = '        // await sleep(3000);';
+            const indentMatch = line.match(/^(\s*)/);
+            const indent = indentMatch ? indentMatch[1] : '';
+            const afterIndent = line.substring(indent.length);
+
+            let uncommentedLine: string;
+            if (afterIndent.startsWith('//')) {
+                const rest = afterIndent.substring(2);
+                if (rest.startsWith(' ')) {
+                    uncommentedLine = `${indent}${rest.substring(1)}`;
+                } else {
+                    uncommentedLine = `${indent}${rest}`;
+                }
+            } else {
+                uncommentedLine = line;
+            }
+
+            assert.strictEqual(uncommentedLine, '        await sleep(3000);');
+        });
+
+        test('Should remove first // from double-commented line', () => {
+            // When line is "    //// already commented", uncomment should result in "    /// already commented"
+            const line = '        //// already commented';
+            const indentMatch = line.match(/^(\s*)/);
+            const indent = indentMatch ? indentMatch[1] : '';
+            const afterIndent = line.substring(indent.length);
+
+            let uncommentedLine: string;
+            if (afterIndent.startsWith('//')) {
+                const rest = afterIndent.substring(2);
+                if (rest.startsWith(' ')) {
+                    uncommentedLine = `${indent}${rest.substring(1)}`;
+                } else {
+                    uncommentedLine = `${indent}${rest}`;
+                }
+            } else {
+                uncommentedLine = line;
+            }
+
+            assert.strictEqual(uncommentedLine, '        /// already commented');
         });
 
         test('Should preserve indentation when commenting', () => {

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.1] - 2025-12-10
+
+### Fixed
+- **Debug marker at end of step**: Fixed issue where `@debug` placed after the last line of a step wouldn't comment out lines properly
+- **Undebug functionality**: Fixed bug where `@undebug` wasn't properly uncommenting all lines. Now removes the first `//` found on any commented line
+- **Respect existing comments**: When `@debug` encounters already-commented lines, it now adds another `//` before them (e.g., `// await` → `//// await`) so `@undebug` can reverse it properly
+- **Double-undebug protection**: Fixed issue where running `@undebug` twice would fully uncomment originally commented lines
+- **Already-commented lines**: Fixed bug where lines that were already commented before using `@debug` weren't being processed. Now they are included and get double-commented correctly
+
+### Added
+- **Multiple markers validation**: Extension now detects and shows error if multiple `@debug` or `@undebug` markers are found in the same file
+- **Consecutive operation prevention**: Added protection to prevent running `@debug` consecutively or `@undebug` consecutively. Must alternate between them
+- **Scope restriction**: Debug/undebug operations now only work inside `describe` or `test` callbacks (prevents accidental processing outside test files)
+- **Before/beforeEach support**: Full support for placing `@debug` or `@undebug` inside `before` and `beforeEach` blocks
+
+### Changed
+- **Comment pattern**: `@debug` now always adds `//` before the first character, regardless of existing comments
+- **Uncomment pattern**: `@undebug` now only removes the first `//` found, strictly preserving original comment structure
+
 ## [0.2.0] - 2025-10-28
 
 ### Added
