@@ -3,7 +3,7 @@
     "displayName": "Mocha Test Debug Helper",
     "description": "Comment/uncomment code blocks for Mocha test debugging",
     "icon": "resources/images/icon_minified.png",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "publisher": "narukami-dev",
     "repository": {
         "type": "git",
@@ -43,11 +43,12 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
+        "compile": "esbuild src/extension.ts --bundle --outfile=out/src/extension.js --external:vscode --format=cjs --platform=node --target=node18 --sourcemap",
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile",
         "lint": "eslint src --ext ts",
-        "test": "node ./out/test/runTest.js"
+        "test": "node ./out/test/runTest.js",
+        "package": "vsce package"
     },
     "dependencies": {
         "ts-morph": "^24.0.0"
@@ -60,6 +61,7 @@
         "@typescript-eslint/eslint-plugin": "^6.x",
         "@typescript-eslint/parser": "^6.x",
         "@vscode/test-electron": "^2.3.8",
+        "esbuild": "^0.19.12",
         "eslint": "^8.x",
         "glob": "^8.1.0",
         "mocha": "^10.2.0",

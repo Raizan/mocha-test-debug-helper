@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1] - 2025-12-10
+
+### Fixed
+- **Dependency bundling**: Added esbuild bundling to include `ts-morph` dependency in VSIX package
+  - Previously, when packaging with `vsce package`, dependencies from `node_modules` were excluded (via `.vscodeignore`), causing the extension to fail when installed via VSIX
+  - Extension now uses esbuild to bundle all dependencies (including `ts-morph`) into a single `extension.js` file
+  - This ensures all required dependencies are included in the VSIX package and the extension works correctly after installation
+  - Fixes issue where extension worked in debug mode but failed when installed via VSIX due to missing `ts-morph` dependency
+
 ## [0.3.0] - 2025-12-10
 
 ### Changed
@@ -7,7 +16,6 @@
   - Uses TypeScript compiler API to parse code structure
   - Handles complex nested structures correctly
   - More reliable detection of `step`, `describe`, `test`, `before`, and `beforeEach` blocks
-- **Command names**: Updated command identifiers to include publisher prefix (`narukami-dev.mocha-test-debug-helper.*`)
 
 ### Fixed
 - **Closing brace detection**: Fixed critical bug where closing braces/parentheses for `step`, `describe`, `test`, `before`, and `beforeEach` blocks were being incorrectly commented out
