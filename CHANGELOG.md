@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.2] - 2026-01-27
+
+### Fixed
+- **Scope detection for debug markers**: Fixed critical bug where `@debug` and `@undebug` markers weren't being recognized during save operations
+  - Changed scope boundary check from `s.endLine > debugLine` to `s.endLine >= debugLine` to include markers at the end line of scopes
+  - Added step scope checking in addition to describe and test scopes (previously only checked describe/test)
+  - Added error messages when markers are placed outside valid scopes (describe, test, or step blocks)
+  - Fixes issue where debug line and save functionality completely stopped working
+
 ## [0.3.1] - 2025-12-10
 
 ### Fixed

@@ -267,15 +267,22 @@ function processDebugMarkers(document: vscode.TextDocument): vscode.WorkspaceEdi
 function processDebugModeForSave(document: vscode.TextDocument, lines: string[], debugLine: number): vscode.TextEdit[] {
     const scopes = parseScopes(lines);
 
-    // Ensure debug marker is inside a describe or test callback
+    // Ensure debug marker is inside a describe, test, or step callback
+    // Use >= for endLine to include markers at the end line
     const describeScope = scopes.find(s =>
-        s.type === 'describe' && s.startLine < debugLine && s.endLine > debugLine
+        s.type === 'describe' && s.startLine < debugLine && s.endLine >= debugLine
     );
     const testScope = scopes.find(s =>
-        s.type === 'test' && s.startLine < debugLine && s.endLine > debugLine
+        s.type === 'test' && s.startLine < debugLine && s.endLine >= debugLine
+    );
+    const stepScope = scopes.find(s =>
+        s.type === 'step' && s.startLine < debugLine && s.endLine >= debugLine
     );
 
-    if (!describeScope && !testScope) {
+    if (!describeScope && !testScope && !stepScope) {
+        vscode.window.showErrorMessage(
+            '@debug marker must be placed inside a describe, test, or step block.'
+        );
         return [];
     }
 
@@ -331,15 +338,22 @@ function processDebugModeForSave(document: vscode.TextDocument, lines: string[],
 function processUndebugModeForSave(document: vscode.TextDocument, lines: string[], undebugLine: number): vscode.TextEdit[] {
     const scopes = parseScopes(lines);
 
-    // Ensure undebug marker is inside a describe or test callback
+    // Ensure undebug marker is inside a describe, test, or step callback
+    // Use >= for endLine to include markers at the end line
     const describeScope = scopes.find(s =>
-        s.type === 'describe' && s.startLine < undebugLine && s.endLine > undebugLine
+        s.type === 'describe' && s.startLine < undebugLine && s.endLine >= undebugLine
     );
     const testScope = scopes.find(s =>
-        s.type === 'test' && s.startLine < undebugLine && s.endLine > undebugLine
+        s.type === 'test' && s.startLine < undebugLine && s.endLine >= undebugLine
+    );
+    const stepScope = scopes.find(s =>
+        s.type === 'step' && s.startLine < undebugLine && s.endLine >= undebugLine
     );
 
-    if (!describeScope && !testScope) {
+    if (!describeScope && !testScope && !stepScope) {
+        vscode.window.showErrorMessage(
+            '@undebug marker must be placed inside a describe, test, or step block.'
+        );
         return [];
     }
 
@@ -419,15 +433,19 @@ function processUndebugModeForSave(document: vscode.TextDocument, lines: string[
 function processDebugMode(document: vscode.TextDocument, lines: string[], debugLine: number): vscode.WorkspaceEdit | null {
     const scopes = parseScopes(lines);
 
-    // Ensure debug marker is inside a describe or test callback
+    // Ensure debug marker is inside a describe, test, or step callback
+    // Use >= for endLine to include markers at the end line
     const describeScope = scopes.find(s =>
-        s.type === 'describe' && s.startLine < debugLine && s.endLine > debugLine
+        s.type === 'describe' && s.startLine < debugLine && s.endLine >= debugLine
     );
     const testScope = scopes.find(s =>
-        s.type === 'test' && s.startLine < debugLine && s.endLine > debugLine
+        s.type === 'test' && s.startLine < debugLine && s.endLine >= debugLine
+    );
+    const stepScope = scopes.find(s =>
+        s.type === 'step' && s.startLine < debugLine && s.endLine >= debugLine
     );
 
-    if (!describeScope && !testScope) {
+    if (!describeScope && !testScope && !stepScope) {
         return null;
     }
 
@@ -487,15 +505,19 @@ function processDebugMode(document: vscode.TextDocument, lines: string[], debugL
 function processUndebugMode(document: vscode.TextDocument, lines: string[], undebugLine: number): vscode.WorkspaceEdit | null {
     const scopes = parseScopes(lines);
 
-    // Ensure undebug marker is inside a describe or test callback
+    // Ensure undebug marker is inside a describe, test, or step callback
+    // Use >= for endLine to include markers at the end line
     const describeScope = scopes.find(s =>
-        s.type === 'describe' && s.startLine < undebugLine && s.endLine > undebugLine
+        s.type === 'describe' && s.startLine < undebugLine && s.endLine >= undebugLine
     );
     const testScope = scopes.find(s =>
-        s.type === 'test' && s.startLine < undebugLine && s.endLine > undebugLine
+        s.type === 'test' && s.startLine < undebugLine && s.endLine >= undebugLine
+    );
+    const stepScope = scopes.find(s =>
+        s.type === 'step' && s.startLine < undebugLine && s.endLine >= undebugLine
     );
 
-    if (!describeScope && !testScope) {
+    if (!describeScope && !testScope && !stepScope) {
         return null;
     }
 
