@@ -34,7 +34,37 @@
         "mac": "ctrl+shift+d",
         "when": "editorTextFocus && editorLangId =~ /(javascript|typescript)/"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Mocha Debug Helper",
+      "properties": {
+        "narukami-dev.mochaTestDebugHelper.protectedFunctions": {
+          "type": "array",
+          "default": [
+            "describe",
+            "before",
+            "beforeEach",
+            "test",
+            "it",
+            "after",
+            "afterEach",
+            "step"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Function names treated as protected callback scopes. Their call/header and closing lines are never commented/uncommented."
+        },
+        "narukami-dev.mochaTestDebugHelper.functionAllowlist": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Function names that keep var/let/const call-initializer declarations protected from comment/uncomment (supports identifier and member calls, e.g. findElementByText)."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

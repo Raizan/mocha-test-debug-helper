@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.0] - 2026-02-10
+
+### Added
+- **Configurable protected functions** via `narukami-dev.mochaTestDebugHelper.protectedFunctions`
+  - Overrides default protected callback names used for scope detection and protected header/closure lines
+- **Configurable variable function allowlist** via `narukami-dev.mochaTestDebugHelper.functionAllowlist`
+  - Variable declarations with call initializers stay protected when call name is in allowlist
+  - Supports direct, static/member, and instance method calls
+
+### Changed
+- **Variable declaration handling is now selective**
+  - Non-call variable declarations remain protected
+  - Call-based declarations are commentable by default, except configured allowlist matches
+- **Safer callback-body scoping**
+  - Marker processing stays in nearest protected callback block
+  - Prevents accidental edits in outer hooks/config blocks
+
+### Fixed
+- **VS Code Electron test robustness**
+  - Integration tests no longer depend on a guaranteed workspace folder
+  - Extension activation lookup now works regardless of publisher id
+- **Regression coverage for multiline and malformed structures**
+  - Added tests for multiline protected call signatures/closures
+  - Added tests for ambiguous/malformed callback structures
+
 ## [0.3.2] - 2026-01-27
 
 ### Fixed

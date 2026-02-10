@@ -1,5 +1,9 @@
 import * as vscode from "vscode";
-import { processFileOnSave } from "./processor";
+import {
+  DEFAULT_FUNCTION_ALLOWLIST,
+  DEFAULT_PROTECTED_FUNCTIONS,
+  processFileOnSave,
+} from "./processor";
 
 const DEBUG_TAG = "//@debug";
 const UNDEBUG_TAG = "//@undebug";
@@ -87,7 +91,20 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     try {
-      const didChange = await processFileOnSave(document);
+      const config = vscode.workspace.getConfiguration("narukami-dev.mochaTestDebugHelper");
+      const protectedFunctions = config.get<string[]>(
+        "protectedFunctions",
+        DEFAULT_PROTECTED_FUNCTIONS,
+      );
+      const functionAllowlist = config.get<string[]>(
+        "functionAllowlist",
+        DEFAULT_FUNCTION_ALLOWLIST,
+      );
+
+      const didChange = await processFileOnSave(document, {
+        protectedFunctions,
+        functionAllowlist,
+      });
       if (!didChange) {
         return;
       }

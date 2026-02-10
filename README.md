@@ -1,217 +1,107 @@
 # Mocha Test Debug Helper
 
-A VS Code extension to help debug Mocha-style tests by automatically commenting/uncommenting code blocks based on special markers.
+VS Code extension to debug Mocha-style tests by toggling marker lines and auto commenting/uncommenting lines on save.
 
-**Version 0.3.0+** uses AST-based parsing (ts-morph) for more accurate scope detection and improved handling of complex code structures.
+## Main behavior
 
-## Features
+### Keyboard toggle (`Ctrl+Shift+D`)
 
-### Keyboard Shortcut (`Ctrl+Shift+D`)
+Inside `.ts`/`.js` editor:
 
-Quickly toggle debug markers with a keyboard shortcut:
+1. first press -> insert `//@debug`
+2. second press on that line -> replace with `//@undebug`
+3. third press on that line -> delete marker line
 
-1. **First press**: Insert `// @debug` at the current cursor line
-2. **Second press** (on `// @debug` line): Replace with `// @undebug`
-3. **Third press** (on `// @undebug` line): Delete the line
+If current line is not empty, marker is inserted above that line with matching indentation.
 
-The shortcut automatically preserves indentation and only works in TypeScript/JavaScript files.
+### Save processing
 
-### Debug Mode (`// @debug`)
+On save, extension validates marker count:
 
-When you add a `// @debug` comment in your test file, the extension will automatically comment out:
+- multiple `//@debug` -> error popup
+- multiple `//@undebug` -> error popup
+- both markers in same file -> error popup
 
-1. **Statements before the debug line** in the current step
-2. **All statements in previous steps** (at the same test level)
-3. **All statements at test level** (code between steps, e.g., `console.log('before step')`)
-4. **All statements in `before()` and `beforeEach()` blocks**
+If valid:
 
-This allows you to focus on debugging a specific part of your test without executing earlier code.
+- `//@debug` -> add one `//` prefix to eligible lines before marker
+- `//@undebug` -> remove one `//` prefix from eligible lines before marker
 
-**Example:**
+Processing is limited to the nearest protected callback body around the marker. Call/header lines and closing lines are protected.
 
-Before (with `// @debug`):
-```typescript
-test("my test", {}, async () => {
-    await step('first step', async () => {
-        const content = [];
-        await sleep(3000);
-    });
+## Configurable settings
 
-    await step('second step', async () => {
-        await sleep(3000);
-        await $('selector').tap();
-        // @debug
-        await $('other-selector').setValue('value');
-    });
-});
+Use `settings.json`:
+
+```json
+{
+  "narukami-dev.mochaTestDebugHelper.protectedFunctions": [
+    "describe",
+    "before",
+    "beforeEach",
+    "test",
+    "it",
+    "after",
+    "afterEach",
+    "step"
+  ],
+  "narukami-dev.mochaTestDebugHelper.functionAllowlist": [
+    "findElementByText"
+  ]
+}
 ```
 
-After save:
-```typescript
-test("my test", {}, async () => {
-    await step('first step', async () => {
-        // const content = [];
-        // await sleep(3000);
-    });
+- `narukami-dev.mochaTestDebugHelper.protectedFunctions`
+  - overrides protected callback names used for scope + header/closure protection
+- `narukami-dev.mochaTestDebugHelper.functionAllowlist`
+  - affects variable declarations with function-call initializers
+  - variable declaration rules:
+    - non-function-call initializers are protected
+    - function-call initializers are commentable by default
+    - if called function name is in allowlist, declaration stays protected
+    - function names are resolved from:
+      - direct call: `findElementByText(...)`
+      - static/member call: `SomeClass.findElementByText(...)`
+      - instance call: `wowClass.findElementByText(...)`
 
-    await step('second step', async () => {
-        // await sleep(3000);
-        // await $('selector').tap();
-        // @debug
-        await $('other-selector').setValue('value');
-    });
-});
+## Example for function allowlist
+
+With `functionAllowlist: ["findElementByText"]` and `//@debug` below:
+
+```ts
+const number = 0;
+const element = await findElementByText("Hello");
+const element2 = await SomeClass.findElementByText("Hello");
+
+const wowClass = new SomeClass();
+const element3 = await wowClass.findElementByText("Hello");
+//@debug
 ```
 
-**Example with test-level code:**
+after save:
 
-Before (with code between steps):
-```typescript
-test("my test", {}, async () => {
-    console.log('before first step');
-    await step('first step', async () => {
-        await doSomething();
-    });
+```ts
+const number = 0;
+const element = await findElementByText("Hello");
+const element2 = await SomeClass.findElementByText("Hello");
 
-    console.log('before second step');
-    await step('second step', async () => {
-        // @debug
-        await targetAction();
-    });
-});
+const wowClass = new SomeClass();
+const element3 = await wowClass.findElementByText("Hello");
+//@debug
 ```
-
-After save:
-```typescript
-test("my test", {}, async () => {
-    // console.log('before first step');
-    await step('first step', async () => {
-        // await doSomething();
-    });
-
-    // console.log('before second step');
-    await step('second step', async () => {
-        // @debug
-        await targetAction();
-    });
-});
-```
-
-### Undebug Mode (`// @undebug`)
-
-When you add a `// @undebug` comment, the extension will uncomment code that was previously commented by the debug mode.
-
-**Important:** The extension uses pattern matching to identify code vs. intentional comments. It only uncomments lines that match common code patterns (keywords like `const`, `await`, function calls, assignments, etc.). Natural language comments are preserved.
-
-**Example:**
-
-With `// @undebug`:
-```typescript
-test("my test", {}, async () => {
-    await step('first step', async () => {
-        // const content = [];
-        // await sleep(3000);
-    });
-
-    await step('second step', async () => {
-        // await sleep(3000);
-        // await $('selector').tap();
-        // @undebug
-        await $('other-selector').setValue('value');
-    });
-});
-```
-
-After save:
-```typescript
-test("my test", {}, async () => {
-    await step('first step', async () => {
-        const content = [];
-        await sleep(3000);
-    });
-
-    await step('second step', async () => {
-        await sleep(3000);
-        await $('selector').tap();
-        // @undebug
-        await $('other-selector').setValue('value');
-    });
-});
-```
-
-## Usage
-
-### Quick Method (Keyboard Shortcut)
-
-1. Place your cursor where you want to add a debug marker
-2. Press `Ctrl+Shift+D` to insert `// @debug`
-3. Save the file (Cmd+S / Ctrl+S) - the extension automatically comments out code
-4. Press `Ctrl+Shift+D` again to toggle to `// @undebug`
-5. Save again to uncomment the code
-6. Press `Ctrl+Shift+D` once more to remove the marker
-
-### Manual Method
-
-1. Manually type `// @debug` or `// @undebug` comment in your test file where you want to apply the commenting/uncommenting
-2. Save the file (Cmd+S / Ctrl+S)
-3. The extension automatically processes the markers and updates your code
-
-## Supported File Types
-
-- TypeScript (`.ts`)
-- JavaScript (`.js`)
-
-## Installation
-
-### From Source
-
-1. Clone this repository
-2. Run `npm install`
-3. Run `npm run compile`
-4. Press F5 to open a new VS Code window with the extension loaded
-5. Open a test file and try it out!
-
-### From VSIX
-
-1. Package the extension: `vsce package`
-2. Install the `.vsix` file in VS Code
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Compile TypeScript
 npm run compile
-
-# Watch for changes
-npm run watch
-
-# Package extension
-vsce package
+npm test
+npx vsce package
 ```
 
 ## Requirements
 
-- VS Code 1.85.0 or higher
-
-## Technical Details
-
-### AST-Based Parsing (v0.3.0+)
-
-The extension uses **ts-morph** (TypeScript compiler API) to parse code structure, providing:
-
-- **Accurate scope detection**: Uses AST parsing instead of regex/brace counting for reliable detection of `step`, `describe`, `test`, `before`, and `beforeEach` blocks
-- **Handles complex structures**: Correctly identifies scopes even with nested objects, function calls, and other complex code patterns
-- **Precise boundary detection**: Accurately determines scope start and end lines, preventing false positives (e.g., closing braces of nested structures won't be mistaken for scope boundaries)
-
-## Known Limitations
-
-- The extension uses pattern matching to distinguish code from intentional comments when uncommenting. It only uncomments lines that match common code patterns (keywords, function calls, assignments, etc.). Natural language comments are preserved.
-- Works best with properly formatted and indented code
-- Assumes standard Mocha test structure with `describe`, `test`, `step`, `before`, and `beforeEach` blocks
-- For `step` functions, they must be wrapped in `await` (e.g., `await step(...)`) to be detected
+- VS Code `^1.85.0`
 
 ## License
 

@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { describe, it } from "mocha";
-import { computeTransformedText } from "../../src/processor";
+import { computeTransformedText, computeTransformedTextWithConfig } from "../../src/processor";
 
 describe("processor logic", () => {
   it("debug mode comments lines before marker and skips protected lines", () => {
@@ -139,7 +139,9 @@ describe("processor logic", () => {
       "});",
     ].join("\n");
 
-    const output = computeTransformedText(input);
+    const output = computeTransformedTextWithConfig(input, {
+      functionAllowlist: ["findElementByText"],
+    });
     assert.strictEqual(output, input);
   });
 
@@ -166,7 +168,53 @@ describe("processor logic", () => {
       "});",
     ].join("\n");
 
-    const output = computeTransformedText(input);
+    const output = computeTransformedTextWithConfig(input, {
+      functionAllowlist: ["findElementByText"],
+    });
     assert.strictEqual(output, input);
+  });
+
+  it("keeps allowlisted function-call declarations protected", () => {
+    const input = [
+      "describe('x', async function(){",
+      "  test('a', async function(){",
+      "    const number = 0;",
+      "    const element = await findElementByText('Hello');",
+      "    const element2 = await SomeClass.findElementByText('Hello');",
+      "    const wowClass = new SomeClass();",
+      "    const element3 = await wowClass.findElementByText('Hello');",
+      "    const other = await anotherFinder('x');",
+      "    //@debug",
+      "  })",
+      "})",
+    ].join("\n");
+
+    const output = computeTransformedTextWithConfig(input, {
+      functionAllowlist: ["findElementByText"],
+    });
+    const lines = output.split("\n");
+
+    assert.strictEqual(lines[2], "    const number = 0;");
+    assert.strictEqual(lines[3], "    const element = await findElementByText('Hello');");
+    assert.strictEqual(lines[4], "    const element2 = await SomeClass.findElementByText('Hello');");
+    assert.strictEqual(lines[5], "    const wowClass = new SomeClass();");
+    assert.strictEqual(lines[6], "    const element3 = await wowClass.findElementByText('Hello');");
+    assert.strictEqual(lines[7], "    //const other = await anotherFinder('x');");
+  });
+
+  it("allows overriding protected function names", () => {
+    const input = [
+      "suiteCase('x', async function(){",
+      "  console.log('1');",
+      "  //@debug",
+      "})",
+    ].join("\n");
+
+    const output = computeTransformedTextWithConfig(input, {
+      protectedFunctions: ["suiteCase"],
+    });
+    const lines = output.split("\n");
+
+    assert.strictEqual(lines[1], "  //console.log('1');");
   });
 });

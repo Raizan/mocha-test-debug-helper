@@ -1,5 +1,6 @@
 import * as assert from "node:assert";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "mocha";
 import * as vscode from "vscode";
@@ -11,17 +12,18 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function ensureExtensionActivated(): Promise<void> {
-  const extension = vscode.extensions.getExtension("reyhanarief.mocha-test-debug-helper");
+  const extension = vscode.extensions.all.find(
+    (item) => item.packageJSON?.name === "mocha-test-debug-helper",
+  );
   if (extension && !extension.isActive) {
     await extension.activate();
   }
 }
 
 async function createTempTestFile(fileName: string, content: string): Promise<vscode.Uri> {
-  const workspace = vscode.workspace.workspaceFolders?.[0];
-  assert.ok(workspace, "Workspace folder is required for integration tests.");
-
-  const tempDir = path.join(workspace.uri.fsPath, ".tmp-tests");
+  const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const baseDir = workspace ?? path.join(os.tmpdir(), "mocha-test-debug-helper-tests");
+  const tempDir = path.join(baseDir, ".tmp-tests");
   await fs.mkdir(tempDir, { recursive: true });
 
   const filePath = path.join(tempDir, fileName);

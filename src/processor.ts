@@ -1,10 +1,11 @@
+
 import * as vscode from "vscode";
 import { Block, CallExpression, Node, Project, SourceFile, SyntaxKind } from "ts-morph";
 
 const DEBUG_TAG = "//@debug";
 const UNDEBUG_TAG = "//@undebug";
 
-const PROTECTED_FUNCTIONS = new Set([
+const DEFAULT_PROTECTED_FUNCTIONS = [
   "describe",
   "before",
   "beforeEach",
@@ -13,7 +14,9 @@ const PROTECTED_FUNCTIONS = new Set([
   "after",
   "afterEach",
   "step",
-]);
+];
+
+const DEFAULT_FUNCTION_ALLOWLIST: string[] = [];
 
 type Mode = "debug" | "undebug";
 
@@ -21,6 +24,11 @@ type MarkerInfo = {
   mode: Mode;
   markerLine: number;
   markerOffset: number;
+};
+
+export type ProcessorConfig = {
+  protectedFunctions: string[];
+  functionAllowlist: string[];
 };
 
 type LineRange = {
@@ -33,8 +41,42 @@ type ProtectedCallInfo = LineRange & {
   bodyEndLine?: number;
 };
 
-const PROTECTED_CALL_LINE_PATTERN =
-  /^\s*(?:\/\/+\s*)?(?:await\s+)?(?:describe|before|beforeEach|test|it|after|afterEach|step)\s*\(/;
+function getDefaultConfig(): ProcessorConfig {
+  return {
+    protectedFunctions: [...DEFAULT_PROTECTED_FUNCTIONS],
+    functionAllowlist: [...DEFAULT_FUNCTION_ALLOWLIST],
+  };
+}
+
+function normalizeConfig(config?: Partial<ProcessorConfig>): ProcessorConfig {
+  const defaults = getDefaultConfig();
+
+  const protectedFunctions = (config?.protectedFunctions ?? defaults.protectedFunctions)
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  const functionAllowlist = (config?.functionAllowlist ?? defaults.functionAllowlist)
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  return {
+    protectedFunctions,
+    functionAllowlist,
+  };
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getProtectedCallLinePattern(protectedFunctions: string[]): RegExp | undefined {
+  if (protectedFunctions.length === 0) {
+    return undefined;
+  }
+
+  const fnPart = protectedFunctions.map(escapeRegex).join("|");
+  return new RegExp(`^\\s*(?:\\/\\/+\\s*)?(?:await\\s+)?(?:${fnPart})\\s*\\(`);
+}
 
 function getLineStartOffsets(lines: string[], eol: string): number[] {
   const offsets: number[] = [];
@@ -131,7 +173,92 @@ function getProtectedCallbackBodyBlock(callExpression: CallExpression): Block | 
   return undefined;
 }
 
-function getProtectedLines(sourceFile: SourceFile): Set<number> {
+function unwrapExpression(node: Node): Node {
+  let current = node;
+  while (true) {
+    if (Node.isParenthesizedExpression(current)) {
+      current = current.getExpression();
+      continue;
+    }
+    if (Node.isAwaitExpression(current)) {
+      current = current.getExpression();
+      continue;
+    }
+    if (Node.isAsExpression(current)) {
+      current = current.getExpression();
+      continue;
+    }
+    if (Node.isSatisfiesExpression(current)) {
+      current = current.getExpression();
+      continue;
+    }
+    if (Node.isTypeAssertion(current)) {
+      current = current.getExpression();
+      continue;
+    }
+    if (Node.isNonNullExpression(current)) {
+      current = current.getExpression();
+      continue;
+    }
+    return current;
+  }
+}
+
+function getCallName(expression: Node): string | undefined {
+  const normalized = unwrapExpression(expression);
+  if (!Node.isCallExpression(normalized)) {
+    return undefined;
+  }
+
+  const target = normalized.getExpression();
+  if (Node.isIdentifier(target)) {
+    return target.getText();
+  }
+
+  if (Node.isPropertyAccessExpression(target)) {
+    return target.getName();
+  }
+
+  return undefined;
+}
+
+function shouldProtectVariableStatement(
+  node: Node,
+  functionAllowlist: Set<string>,
+): boolean {
+  if (!Node.isVariableStatement(node)) {
+    return false;
+  }
+
+  const declarations = node.getDeclarations();
+  if (declarations.length === 0) {
+    return true;
+  }
+
+  for (const declaration of declarations) {
+    const initializer = declaration.getInitializer();
+    if (!initializer) {
+      continue;
+    }
+
+    const callName = getCallName(initializer);
+    if (!callName) {
+      continue;
+    }
+
+    if (!functionAllowlist.has(callName)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getProtectedLines(
+  sourceFile: SourceFile,
+  protectedFunctions: Set<string>,
+  functionAllowlist: Set<string>,
+): Set<number> {
   const protectedLines = new Set<number>();
 
   sourceFile.forEachDescendant((node) => {
@@ -139,7 +266,7 @@ function getProtectedLines(sourceFile: SourceFile): Set<number> {
       const expression = node.getExpression();
       if (Node.isIdentifier(expression)) {
         const fnName = expression.getText();
-        if (PROTECTED_FUNCTIONS.has(fnName)) {
+        if (protectedFunctions.has(fnName)) {
           const callStart = node.getStartLineNumber() - 1;
           const callEnd = node.getEndLineNumber() - 1;
           const callbackBodyBlock = getProtectedCallbackBodyBlock(node);
@@ -160,7 +287,7 @@ function getProtectedLines(sourceFile: SourceFile): Set<number> {
       }
     }
 
-    if (Node.isVariableStatement(node)) {
+    if (Node.isVariableStatement(node) && shouldProtectVariableStatement(node, functionAllowlist)) {
       const start = node.getStartLineNumber() - 1;
       const end = node.getEndLineNumber() - 1;
       addProtectedRange(protectedLines, start, end);
@@ -170,7 +297,10 @@ function getProtectedLines(sourceFile: SourceFile): Set<number> {
   return protectedLines;
 }
 
-function getProtectedCallInfos(sourceFile: SourceFile): ProtectedCallInfo[] {
+function getProtectedCallInfos(
+  sourceFile: SourceFile,
+  protectedFunctions: Set<string>,
+): ProtectedCallInfo[] {
   const infos: ProtectedCallInfo[] = [];
 
   sourceFile.forEachDescendant((node) => {
@@ -183,7 +313,7 @@ function getProtectedCallInfos(sourceFile: SourceFile): ProtectedCallInfo[] {
       return;
     }
 
-    if (!PROTECTED_FUNCTIONS.has(expression.getText())) {
+    if (!protectedFunctions.has(expression.getText())) {
       return;
     }
 
@@ -199,10 +329,17 @@ function getProtectedCallInfos(sourceFile: SourceFile): ProtectedCallInfo[] {
   return infos;
 }
 
-function getRegexProtectedLines(lines: string[]): Set<number> {
+function getRegexProtectedLines(
+  lines: string[],
+  protectedCallLinePattern: RegExp | undefined,
+): Set<number> {
   const protectedLines = new Set<number>();
+  if (!protectedCallLinePattern) {
+    return protectedLines;
+  }
+
   for (let i = 0; i < lines.length; i += 1) {
-    if (PROTECTED_CALL_LINE_PATTERN.test(lines[i])) {
+    if (protectedCallLinePattern.test(lines[i])) {
       protectedLines.add(i);
     }
   }
@@ -213,9 +350,14 @@ function hasAmbiguousInnerProtectedCallBeforeMarker(
   lines: string[],
   markerLine: number,
   callInfos: ProtectedCallInfo[],
+  protectedCallLinePattern: RegExp | undefined,
 ): boolean {
+  if (!protectedCallLinePattern) {
+    return false;
+  }
+
   for (let i = markerLine - 1; i >= 0; i -= 1) {
-    if (!PROTECTED_CALL_LINE_PATTERN.test(lines[i])) {
+    if (!protectedCallLinePattern.test(lines[i])) {
       continue;
     }
 
@@ -245,7 +387,7 @@ function hasAmbiguousInnerProtectedCallBeforeMarker(
   return false;
 }
 
-function isProtectedCallbackBlock(block: Node): boolean {
+function isProtectedCallbackBlock(block: Node, protectedFunctions: Set<string>): boolean {
   if (!Node.isBlock(block)) {
     return false;
   }
@@ -269,12 +411,13 @@ function isProtectedCallbackBlock(block: Node): boolean {
     return false;
   }
 
-  return PROTECTED_FUNCTIONS.has(expression.getText());
+  return protectedFunctions.has(expression.getText());
 }
 
 function getProcessingStartLine(
   sourceFile: SourceFile,
   markerOffset: number,
+  protectedFunctions: Set<string>,
 ): number | undefined {
   const markerNode =
     sourceFile.getDescendantAtPos(markerOffset) ??
@@ -286,7 +429,10 @@ function getProcessingStartLine(
 
   const candidateBlocks = markerNode
     .getAncestors()
-    .filter((ancestor) => Node.isBlock(ancestor) && isProtectedCallbackBlock(ancestor));
+    .filter(
+      (ancestor) =>
+        Node.isBlock(ancestor) && isProtectedCallbackBlock(ancestor, protectedFunctions),
+    );
 
   if (candidateBlocks.length === 0) {
     return undefined;
@@ -298,26 +444,52 @@ function getProcessingStartLine(
 }
 
 export function computeTransformedText(text: string): string {
+  return computeTransformedTextWithConfig(text);
+}
+
+export function computeTransformedTextWithConfig(
+  text: string,
+  config?: Partial<ProcessorConfig>,
+): string {
   const markerInfo = getMarkerInfo(text);
   if (!markerInfo) {
     return text;
   }
 
+  const normalizedConfig = normalizeConfig(config);
+  const protectedFunctions = new Set(normalizedConfig.protectedFunctions);
+  const functionAllowlist = new Set(normalizedConfig.functionAllowlist);
+  const protectedCallLinePattern = getProtectedCallLinePattern(
+    normalizedConfig.protectedFunctions,
+  );
+
   const lines = text.split(/\r?\n/);
   const parseText = markerInfo.mode === "undebug" ? stripFirstCommentPrefixPerLine(text) : text;
   const project = new Project({ useInMemoryFileSystem: true });
   const sourceFile = project.createSourceFile("temp.ts", parseText, { overwrite: true });
-  const protectedCallInfos = getProtectedCallInfos(sourceFile);
-  if (hasAmbiguousInnerProtectedCallBeforeMarker(lines, markerInfo.markerLine, protectedCallInfos)) {
+  const protectedCallInfos = getProtectedCallInfos(sourceFile, protectedFunctions);
+  if (
+    hasAmbiguousInnerProtectedCallBeforeMarker(
+      lines,
+      markerInfo.markerLine,
+      protectedCallInfos,
+      protectedCallLinePattern,
+    )
+  ) {
     return text;
   }
-  const protectedLines = getProtectedLines(sourceFile);
-  for (const protectedLine of getRegexProtectedLines(lines)) {
+  const protectedLines = getProtectedLines(
+    sourceFile,
+    protectedFunctions,
+    functionAllowlist,
+  );
+  for (const protectedLine of getRegexProtectedLines(lines, protectedCallLinePattern)) {
     protectedLines.add(protectedLine);
   }
   const processingStartLine = getProcessingStartLine(
     sourceFile,
     markerInfo.markerOffset,
+    protectedFunctions,
   );
   if (processingStartLine === undefined) {
     return text;
@@ -356,9 +528,12 @@ function getLeadingWhitespace(text: string): string {
   return match ? match[0] : "";
 }
 
-export async function processFileOnSave(document: vscode.TextDocument): Promise<boolean> {
+export async function processFileOnSave(
+  document: vscode.TextDocument,
+  config?: Partial<ProcessorConfig>,
+): Promise<boolean> {
   const originalText = document.getText();
-  const transformedText = computeTransformedText(originalText);
+  const transformedText = computeTransformedTextWithConfig(originalText, config);
 
   if (transformedText === originalText) {
     return false;
@@ -375,3 +550,5 @@ export async function processFileOnSave(document: vscode.TextDocument): Promise<
 
   return applied;
 }
+
+export { DEFAULT_FUNCTION_ALLOWLIST, DEFAULT_PROTECTED_FUNCTIONS };
