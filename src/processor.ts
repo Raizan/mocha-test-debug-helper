@@ -438,9 +438,11 @@ function getProcessingStartLine(
     return undefined;
   }
 
-  // getAncestors() is ordered from nearest parent to farthest; use nearest protected block.
-  const nearestProtectedBlock = candidateBlocks[0];
-  return nearestProtectedBlock.getStartLineNumber();
+  // getAncestors() is ordered from nearest parent to farthest
+  // We want the OUTERMOST protected block (usually describe), not the nearest one
+  // This ensures we process everything in before() blocks when marker is in test() blocks
+  const outermostProtectedBlock = candidateBlocks[candidateBlocks.length - 1];
+  return outermostProtectedBlock.getStartLineNumber();
 }
 
 export function computeTransformedText(text: string): string {

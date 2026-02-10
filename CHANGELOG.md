@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2] - 2026-02-10
+
+### Fixed
+- **Critical bug fix: before() blocks not being commented**: Fixed issue where `@debug` markers placed in `test()` blocks were not commenting code in `before()` blocks
+  - Changed processing start line detection to use outermost protected block (describe) instead of nearest block (test)
+  - Now correctly comments all code in `before()` and `beforeEach()` blocks when marker is in a `test()` block
+  - Ensures consistent behavior matching requirement specifications
+
 ## [0.4.1] - 2026-02-10
 
 ### Fixed

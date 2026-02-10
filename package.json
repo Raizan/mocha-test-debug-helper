@@ -2,7 +2,7 @@
   "name": "mocha-test-debug-helper",
   "displayName": "Mocha Test Debug Helper",
   "description": "Debug mocha-style tests by toggling debug markers and auto commenting/uncommenting code on save.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "narukami-dev",
   "repository": {
     "type": "git",
