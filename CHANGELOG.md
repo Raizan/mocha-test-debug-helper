@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.1] - 2026-02-10
+
+### Fixed
+- Extension icon
+
 ## [0.4.0] - 2026-02-10
 
 ### Added
