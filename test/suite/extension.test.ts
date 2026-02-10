@@ -1,118 +1,88 @@
-import * as assert from 'assert';
-import * as vscode from 'vscode';
+import * as assert from "node:assert";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import { describe, it } from "mocha";
+import * as vscode from "vscode";
 
-suite('Mocha Test Debug Helper Extension Test Suite', () => {
-    vscode.window.showInformationMessage('Start all tests.');
+const COMMAND_ID = "mocha-debug-helper.toggleDebug";
 
-    test('Extension should be present', () => {
-        assert.ok(vscode.extensions.getExtension('narukami-dev.mocha-test-debug-helper'));
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureExtensionActivated(): Promise<void> {
+  const extension = vscode.extensions.getExtension("reyhanarief.mocha-test-debug-helper");
+  if (extension && !extension.isActive) {
+    await extension.activate();
+  }
+}
+
+async function createTempTestFile(fileName: string, content: string): Promise<vscode.Uri> {
+  const workspace = vscode.workspace.workspaceFolders?.[0];
+  assert.ok(workspace, "Workspace folder is required for integration tests.");
+
+  const tempDir = path.join(workspace.uri.fsPath, ".tmp-tests");
+  await fs.mkdir(tempDir, { recursive: true });
+
+  const filePath = path.join(tempDir, fileName);
+  await fs.writeFile(filePath, content, "utf8");
+  return vscode.Uri.file(filePath);
+}
+
+describe("extension integration", () => {
+  it("toggle command cycles debug marker states", async () => {
+    await ensureExtensionActivated();
+
+    const uri = await createTempTestFile(
+      "toggle-cycle.ts",
+      ["describe('', async function(){", "    test('', async function(){", "        console.log('x')", "    })", "})"].join("\n"),
+    );
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const editor = await vscode.window.showTextDocument(doc);
+
+    editor.selection = new vscode.Selection(new vscode.Position(2, 8), new vscode.Position(2, 8));
+    await vscode.commands.executeCommand(COMMAND_ID);
+    assert.strictEqual(doc.lineAt(2).text.trim(), "//@debug");
+
+    await vscode.commands.executeCommand(COMMAND_ID);
+    assert.strictEqual(doc.lineAt(2).text.trim(), "//@undebug");
+
+    await vscode.commands.executeCommand(COMMAND_ID);
+    assert.notStrictEqual(doc.lineAt(2).text.trim(), "//@undebug");
+  });
+
+  it("on save with //@debug comments only valid lines before marker", async () => {
+    await ensureExtensionActivated();
+
+    const uri = await createTempTestFile(
+      "save-debug.ts",
+      [
+        "describe('', async function(){",
+        "    before('', async function(){",
+        "        console.log('1')",
+        "    })",
+        "    test('', async function(){",
+        "        const a = 'abc'",
+        "        console.log('2')",
+        "    })",
+        "    //@debug",
+        "})",
+      ].join("\n"),
+    );
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const editor = await vscode.window.showTextDocument(doc);
+
+    await editor.edit((builder) => {
+      builder.insert(new vscode.Position(8, doc.lineAt(8).text.length), " ");
     });
+    await doc.save();
+    await sleep(700);
 
-    test('Should activate extension', async () => {
-        const ext = vscode.extensions.getExtension('narukami-dev.mocha-test-debug-helper');
-        if (ext) {
-            await ext.activate();
-            assert.strictEqual(ext.isActive, true);
-        }
-    });
+    const refreshed = await vscode.workspace.openTextDocument(uri);
+    const lines = refreshed.getText().split(/\r?\n/);
 
-    test('Should register processDebug command', async () => {
-        const commands = await vscode.commands.getCommands(true);
-        assert.ok(commands.includes('mocha-test-debug-helper.processDebug'));
-    });
-
-    test('Should register toggleDebugMarker command', async () => {
-        const commands = await vscode.commands.getCommands(true);
-        assert.ok(commands.includes('mocha-test-debug-helper.toggleDebugMarker'));
-    });
-
-    test('Toggle marker: Insert @debug on empty line', async () => {
-        const document = await vscode.workspace.openTextDocument({
-            content: '',
-            language: 'typescript'
-        });
-        const editor = await vscode.window.showTextDocument(document);
-
-        // Execute toggle command
-        await vscode.commands.executeCommand('mocha-test-debug-helper.toggleDebugMarker');
-
-        // Wait for edit to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Check result
-        const text = editor.document.getText();
-        assert.strictEqual(text, '// @debug');
-
-        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-    });
-
-    test('Toggle marker: Replace @debug with @undebug', async () => {
-        const document = await vscode.workspace.openTextDocument({
-            content: '// @debug',
-            language: 'typescript'
-        });
-        const editor = await vscode.window.showTextDocument(document);
-
-        // Set cursor on the @debug line
-        editor.selection = new vscode.Selection(0, 0, 0, 0);
-
-        // Execute toggle command
-        await vscode.commands.executeCommand('mocha-test-debug-helper.toggleDebugMarker');
-
-        // Wait for edit to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Check result
-        const text = editor.document.getText();
-        assert.strictEqual(text, '// @undebug');
-
-        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-    });
-
-    test('Toggle marker: Delete @undebug line', async () => {
-        const document = await vscode.workspace.openTextDocument({
-            content: '// @undebug\nconst x = 1;',
-            language: 'typescript'
-        });
-        const editor = await vscode.window.showTextDocument(document);
-
-        // Set cursor on the @undebug line
-        editor.selection = new vscode.Selection(0, 0, 0, 0);
-
-        // Execute toggle command
-        await vscode.commands.executeCommand('mocha-test-debug-helper.toggleDebugMarker');
-
-        // Wait for edit to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Check result
-        const text = editor.document.getText();
-        assert.strictEqual(text, 'const x = 1;');
-
-        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-    });
-
-    test('Toggle marker: Insert @debug on line with content', async () => {
-        const document = await vscode.workspace.openTextDocument({
-            content: '        await step(() => {});',
-            language: 'typescript'
-        });
-        const editor = await vscode.window.showTextDocument(document);
-
-        // Set cursor on the line
-        editor.selection = new vscode.Selection(0, 8, 0, 8);
-
-        // Execute toggle command
-        await vscode.commands.executeCommand('mocha-test-debug-helper.toggleDebugMarker');
-
-        // Wait for edit to apply
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Check result - should insert on new line above with same indentation
-        const text = editor.document.getText();
-        assert.strictEqual(text, '        // @debug\n        await step(() => {});');
-
-        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-    });
+    assert.strictEqual(lines[2].trim(), "//console.log('1')");
+    assert.strictEqual(lines[5].trim(), "const a = 'abc'");
+    assert.strictEqual(lines[6].trim(), "//console.log('2')");
+  });
 });
-

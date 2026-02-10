@@ -1,70 +1,57 @@
 {
-    "name": "mocha-test-debug-helper",
-    "displayName": "Mocha Test Debug Helper",
-    "description": "Comment/uncomment code blocks for Mocha test debugging",
-    "icon": "resources/images/icon_minified.png",
-    "version": "0.3.2",
-    "publisher": "narukami-dev",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/Raizan/mocha-test-debug-helper"
-    },
-    "engines": {
-        "vscode": "^1.85.0"
-    },
-    "categories": [
-        "Testing",
-        "Other"
+  "name": "mocha-test-debug-helper",
+  "displayName": "Mocha Test Debug Helper",
+  "description": "Debug mocha-style tests by toggling debug markers and auto commenting/uncommenting code on save.",
+  "version": "0.4.0",
+  "publisher": "narukami-dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Raizan/mocha-test-debug-helper"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:typescript"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mocha-debug-helper.toggleDebug",
+        "title": "Mocha Debug Helper: Toggle Debug Marker"
+      }
     ],
-    "activationEvents": [
-        "onLanguage:typescript",
-        "onLanguage:javascript"
-    ],
-    "main": "./out/src/extension.js",
-    "contributes": {
-        "commands": [
-            {
-                "command": "mocha-test-debug-helper.processDebug",
-                "title": "Mocha Test Debug: Process Debug/Undebug Markers"
-            },
-            {
-                "command": "mocha-test-debug-helper.toggleDebugMarker",
-                "title": "Mocha Test Debug: Toggle Debug Marker"
-            }
-        ],
-        "keybindings": [
-            {
-                "command": "mocha-test-debug-helper.toggleDebugMarker",
-                "key": "ctrl+shift+d",
-                "mac": "ctrl+shift+d",
-                "when": "editorTextFocus && (editorLangId == typescript || editorLangId == javascript)"
-            }
-        ]
-    },
-    "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "esbuild src/extension.ts --bundle --outfile=out/src/extension.js --external:vscode --format=cjs --platform=node --target=node18 --sourcemap",
-        "watch": "tsc -watch -p ./",
-        "pretest": "npm run compile",
-        "lint": "eslint src --ext ts",
-        "test": "node ./out/test/runTest.js",
-        "package": "vsce package"
-    },
-    "dependencies": {
-        "ts-morph": "^24.0.0"
-    },
-    "devDependencies": {
-        "@types/glob": "^8.1.0",
-        "@types/mocha": "^10.0.6",
-        "@types/node": "^20.x",
-        "@types/vscode": "^1.85.0",
-        "@typescript-eslint/eslint-plugin": "^6.x",
-        "@typescript-eslint/parser": "^6.x",
-        "@vscode/test-electron": "^2.3.8",
-        "esbuild": "^0.19.12",
-        "eslint": "^8.x",
-        "glob": "^8.1.0",
-        "mocha": "^10.2.0",
-        "typescript": "^5.3.0"
-    }
+    "keybindings": [
+      {
+        "command": "mocha-debug-helper.toggleDebug",
+        "key": "ctrl+shift+d",
+        "mac": "ctrl+shift+d",
+        "when": "editorTextFocus && editorLangId =~ /(javascript|typescript)/"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.17.57",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.5.2",
+    "mocha": "^11.7.4",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "ts-morph": "^27.0.2"
+  }
 }
