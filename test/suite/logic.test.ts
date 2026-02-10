@@ -143,7 +143,7 @@ describe("processor logic", () => {
     assert.strictEqual(output, input);
   });
 
-  it("does not comment multiline test config or outer hooks when marker is after variable line", () => {
+  it("keeps multiline test config intact and respects allowlist while commenting eligible hooks", () => {
     const input = [
       "import { test } from '@mobile/utils/mocha.js';",
       "import { step } from \"@wdio/allure-reporter\";",
@@ -169,7 +169,15 @@ describe("processor logic", () => {
     const output = computeTransformedTextWithConfig(input, {
       functionAllowlist: ["findElementByText"],
     });
-    assert.strictEqual(output, input);
+    const lines = output.split("\n");
+
+    // before() hook line is eligible and should be commented.
+    assert.strictEqual(lines[6], "    //// await AuthenticationFlow.runInitialFlow();");
+    // multiline test config must remain unchanged.
+    assert.strictEqual(lines[10], "    tags: [");
+    assert.strictEqual(lines[13], "    ],");
+    // allowlisted call-initializer declaration remains protected.
+    assert.strictEqual(lines[15], "    const element = await findElementByText('Hello');");
   });
 
   it("keeps allowlisted function-call declarations protected", () => {
