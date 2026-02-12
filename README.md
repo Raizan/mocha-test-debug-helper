@@ -29,6 +29,15 @@ If valid:
 
 Processing is limited to the nearest protected callback body around the marker. Call/header lines and closing lines are protected.
 
+### Focused file script runner (runs on save by default)
+
+When a focused file is saved (`Cmd+S` on macOS / `Ctrl+S` on Windows/Linux), extension can run a configured script against that file.
+You can also run it manually with command `Mocha Debug Helper: Run Script for Focused File` (default `Ctrl+Shift+R`).
+
+- extension appends the focused file absolute path as the last argument
+- if the script exits with error, extension shows popup and logs details in output channel `Mocha Debug Helper`
+- `runOnSaveExtensions` filter applies only to save-triggered runs; manual command always runs
+
 ## Configurable settings
 
 Use `settings.json`:
@@ -47,10 +56,22 @@ Use `settings.json`:
   ],
   "narukami-dev.mochaTestDebugHelper.functionAllowlist": [
     "findElementByText"
-  ]
+  ],
+  "narukami-dev.mochaTestDebugHelper.scriptRunner.command": "node ./scripts/process-file.js",
+  "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave": true,
+  "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSaveExtensions": [".ts", ".js"]
 }
 ```
 
+Notes:
+
+- `narukami-dev.mochaTestDebugHelper.scriptRunner.command`
+  - base script command to execute; extension appends focused file path as last argument
+- `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave`
+  - when true, script runner is triggered from normal file save
+- `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSaveExtensions`
+  - optional extension filter for save-triggered script run
+  - supports values like `.ts`, `js`, or `*`; empty means all files
 - `narukami-dev.mochaTestDebugHelper.protectedFunctions`
   - overrides protected callback names used for scope + header/closure protection
 - `narukami-dev.mochaTestDebugHelper.functionAllowlist`

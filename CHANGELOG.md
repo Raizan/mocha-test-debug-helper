@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.0] - 2026-02-12
+
+### Added
+- **Focused file script runner**
+  - Runs a configured shell command for the currently focused file
+  - Appends focused file absolute path as the final command argument
+  - Triggered automatically on save via `scriptRunner.runOnSave` (enabled by default)
+  - Also available as manual command: `Mocha Debug Helper: Run Script for Focused File`
+
+### Changed
+- **Script runner configuration simplified**
+  - Replaced profile-based configuration with a single command setting:
+    - `narukami-dev.mochaTestDebugHelper.scriptRunner.command`
+  - Kept `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave` to control save-trigger behavior
+  - Added `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSaveExtensions` to filter save-triggered runs by file extension
+  - Manual script command keybinding remains separate (`Ctrl+Shift+R`) while save-triggered execution uses normal save
+
+### Fixed
+- **Script runner error visibility**
+  - Failed script executions now surface a VS Code popup
+  - Detailed output (`stdout`, `stderr`, exit info) is written to output channel `Mocha Debug Helper`
+
 ## [0.4.2] - 2026-02-10
 
 ### Fixed

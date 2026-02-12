@@ -2,7 +2,7 @@
   "name": "mocha-test-debug-helper",
   "displayName": "Mocha Test Debug Helper",
   "description": "Debug mocha-style tests by toggling debug markers and auto commenting/uncommenting code on save.",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "publisher": "narukami-dev",
   "repository": {
     "type": "git",
@@ -26,6 +26,10 @@
       {
         "command": "mocha-debug-helper.toggleDebug",
         "title": "Mocha Debug Helper: Toggle Debug Marker"
+      },
+      {
+        "command": "mocha-debug-helper.runScriptForFocusedFile",
+        "title": "Mocha Debug Helper: Run Script for Focused File"
       }
     ],
     "keybindings": [
@@ -34,6 +38,12 @@
         "key": "ctrl+shift+d",
         "mac": "ctrl+shift+d",
         "when": "editorTextFocus && editorLangId =~ /(javascript|typescript)/"
+      },
+      {
+        "command": "mocha-debug-helper.runScriptForFocusedFile",
+        "key": "ctrl+shift+r",
+        "mac": "ctrl+shift+r",
+        "when": "editorTextFocus"
       }
     ],
     "configuration": {
@@ -63,6 +73,27 @@
             "type": "string"
           },
           "description": "Function names that keep var/let/const call-initializer declarations protected from comment/uncomment (supports identifier and member calls, e.g. findElementByText)."
+        },
+        "narukami-dev.mochaTestDebugHelper.scriptRunner.command": {
+          "type": "string",
+          "default": "",
+          "description": "Base shell command to run on the focused file. The extension appends the file path as the final argument."
+        },
+        "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run configured script automatically when a focused file is saved (Cmd+S / Ctrl+S)."
+        },
+        "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSaveExtensions": {
+          "type": "array",
+          "default": [
+            ".ts",
+            ".js"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional file extensions allowed for save-triggered script run (e.g. ['.ts', '.js'] or ['ts', 'js']). Empty means all extensions."
         }
       }
     }

@@ -8,7 +8,7 @@ export function run(): Promise<void> {
   });
 
   const testsRoot = __dirname;
-  const testFiles = ["extension.test.js", "logic.test.js"];
+  const testFiles = ["extension.test.js", "logic.test.js", "scriptRunner.test.js"];
 
   for (const testFile of testFiles) {
     mocha.addFile(path.resolve(testsRoot, testFile));
