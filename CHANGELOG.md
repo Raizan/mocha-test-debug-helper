@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1] - 2026-02-24
+
+### Added
+- **Script runner runtime notification**
+  - Shows a VS Code toast/popup while a script is running
+  - Displays the configured script command in the notification title
+
+### Changed
+- **Script runner manual mode keybinding**
+  - When `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave` is `false`, manual run uses default keybinding `Ctrl+Shift+S`
+  - Removed `scriptRunner.keyboardShortcut` setting requirement
+
 ## [0.5.0] - 2026-02-12
 
 ### Added

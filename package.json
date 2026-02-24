@@ -2,7 +2,7 @@
   "name": "mocha-test-debug-helper",
   "displayName": "Mocha Test Debug Helper",
   "description": "Debug mocha-style tests by toggling debug markers and auto commenting/uncommenting code on save.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "narukami-dev",
   "repository": {
     "type": "git",
@@ -41,9 +41,9 @@
       },
       {
         "command": "mocha-debug-helper.runScriptForFocusedFile",
-        "key": "ctrl+shift+r",
-        "mac": "ctrl+shift+r",
-        "when": "editorTextFocus"
+        "key": "ctrl+shift+s",
+        "mac": "ctrl+shift+s",
+        "when": "editorTextFocus && config.narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave == false"
       }
     ],
     "configuration": {
@@ -82,7 +82,7 @@
         "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Run configured script automatically when a focused file is saved (Cmd+S / Ctrl+S)."
+          "description": "Run configured script automatically when a focused file is saved (Cmd+S / Ctrl+S). If false, use Ctrl+Shift+S (Cmd+Shift+S on macOS) to run manually."
         },
         "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSaveExtensions": {
           "type": "array",
@@ -93,7 +93,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Optional file extensions allowed for save-triggered script run (e.g. ['.ts', '.js'] or ['ts', 'js']). Empty means all extensions."
+          "description": "Optional file extensions allowed for save-triggered script run (e.g. ['.ts', '.js']). Empty means all extensions."
         }
       }
     }

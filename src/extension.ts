@@ -15,7 +15,17 @@ import {
 const DEBUG_TAG = "//@debug";
 const UNDEBUG_TAG = "//@undebug";
 const MARKER_LANGS = new Set(["javascript", "typescript"]);
-const SCRIPT_RUNNER_OUTPUT_CHANNEL = "Mocha Debug Helper";
+const SCRIPT_RUNNER_OUTPUT_CHANNEL = "Mocha Test Debug Helper";
+
+type ExtensionTestHooks = {
+  createOutputChannel?: (name: string) => vscode.OutputChannel;
+};
+
+let extensionTestHooks: ExtensionTestHooks | undefined;
+
+export function __setTestHooks(hooks?: ExtensionTestHooks): void {
+  extensionTestHooks = hooks;
+}
 
 function getLeadingWhitespace(text: string): string {
   const match = text.match(/^\s*/);
@@ -101,7 +111,16 @@ async function runScriptForDocument(
   outputChannel.appendLine(`Command: ${command}`);
 
   try {
-    const result = await executeScriptCommand(command, cwd);
+    const displayCommand =
+      configuredCommand.length > 80 ? `${configuredCommand.slice(0, 77)}...` : configuredCommand;
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Running script: ${displayCommand}`,
+        cancellable: false,
+      },
+      async () => executeScriptCommand(command, cwd),
+    );
     if (result.stdout.trim().length > 0) {
       outputChannel.appendLine("stdout:");
       outputChannel.append(result.stdout.endsWith("\n") ? result.stdout : `${result.stdout}\n`);
@@ -138,7 +157,9 @@ async function runScriptForDocument(
 export function activate(context: vscode.ExtensionContext): void {
   const skipNextSaveForDocument = new Set<string>();
   const skipNextSaveScriptRunnerForDocument = new Set<string>();
-  const outputChannel = vscode.window.createOutputChannel(SCRIPT_RUNNER_OUTPUT_CHANNEL);
+  const outputChannel = (extensionTestHooks?.createOutputChannel ?? vscode.window.createOutputChannel)(
+    SCRIPT_RUNNER_OUTPUT_CHANNEL,
+  );
 
   const toggleCommand = vscode.commands.registerCommand("mocha-debug-helper.toggleDebug", async () => {
     const editor = vscode.window.activeTextEditor;
@@ -252,4 +273,4 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(toggleCommand, runScriptCommand, onSave, outputChannel);
 }
 
-export function deactivate(): void {}
+export function deactivate(): void { }

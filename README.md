@@ -32,7 +32,8 @@ Processing is limited to the nearest protected callback body around the marker. 
 ### Focused file script runner (runs on save by default)
 
 When a focused file is saved (`Cmd+S` on macOS / `Ctrl+S` on Windows/Linux), extension can run a configured script against that file.
-You can also run it manually with command `Mocha Debug Helper: Run Script for Focused File` (default `Ctrl+Shift+R`).
+You can also run it manually with command `Mocha Debug Helper: Run Script for Focused File`.
+When `runOnSave` is `false`, default shortcut is `Ctrl+Shift+S` (Windows/Linux) / `Cmd+Shift+S` (macOS).
 
 - extension appends the focused file absolute path as the last argument
 - if the script exits with error, extension shows popup and logs details in output channel `Mocha Debug Helper`
@@ -69,6 +70,7 @@ Notes:
   - base script command to execute; extension appends focused file path as last argument
 - `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave`
   - when true, script runner is triggered from normal file save
+  - when false, use manual command (default keybinding: `Ctrl+Shift+S` / `Cmd+Shift+S`)
 - `narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSaveExtensions`
   - optional extension filter for save-triggered script run
   - supports values like `.ts`, `js`, or `*`; empty means all files

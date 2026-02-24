@@ -3,6 +3,7 @@ import { describe, it } from "mocha";
 import {
   buildScriptCommand,
   getConfiguredScriptCommand,
+  runScriptCommand,
   shouldRunOnSaveForFile,
 } from "../../src/scriptRunner";
 
@@ -34,6 +35,12 @@ describe("script runner logic", () => {
   it("escapes single quotes in file path", () => {
     const command = buildScriptCommand("runner", "/tmp/it's-file.ts");
     assert.strictEqual(command, "runner '/tmp/it'\\''s-file.ts'");
+  });
+
+  it("executes arbitrary script command and captures stdout", async () => {
+    const marker = "script-runner-test-marker";
+    const result = await runScriptCommand(`node -e "console.log('${marker}')"`);
+    assert.match(result.stdout, new RegExp(marker));
   });
 
   it("runs on save for all extensions when extension list is empty", () => {

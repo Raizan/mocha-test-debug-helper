@@ -1,0 +1,5 @@
+{
+    "narukami-dev.mochaTestDebugHelper.scriptRunner.runOnSave": false,
+    "narukami-dev.mochaTestDebugHelper.scriptRunner.keyboardShortcut": "cmd+shift+a",
+    "narukami-dev.mochaTestDebugHelper.scriptRunner.command": "node -e \"console.log('custom-shortcut-output-marker')\""
+}
